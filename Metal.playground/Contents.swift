@@ -1,6 +1,8 @@
 import Cocoa
 import PlaygroundSupport
 import MetalKit
+///읽을 거리 
+///https://www.raywenderlich.com/21459096-blender-tutorial-for-beginners-how-to-make-a-mushroom
 
 ///Initialize Metal
 guard let device = MTLCreateSystemDefaultDevice() else {
@@ -19,15 +21,57 @@ let allocator = MTKMeshBufferAllocator(device: device)
 /// Model Mesh 데이타 생성
 /// MDLMesh : A container for vertex buffer data to be used in rendering a 3D object.
 ///
-let mdlMesh = MDLMesh(sphereWithExtent: [0.75,0.75,0.75],
-                      segments: [100,100],
-                      inwardNormals: false,
-                      geometryType: .triangles,
-                      allocator: allocator)
+//let mdlMesh = MDLMesh(sphereWithExtent: [0.75,0.75,0.75],
+//                      segments: [100,100],
+//                      inwardNormals: false,
+//                      geometryType: .triangles,
+//                      allocator: allocator)
+
+
+//let mdlMesh = MDLMesh(coneWithExtent: [1,1,1], segments: [10,10], inwardNormals: false, cap: true, geometryType: .triangles, allocator: allocator)
+
+guard let assetURL = Bundle.main.url(forResource: "train", withExtension: "obj") else {
+    fatalError("train.obj 파일을 읽어오지 못합니다.")
+}
+
+let vertexDescriptor = MTLVertexDescriptor()
+vertexDescriptor.attributes[0].format = .float3
+vertexDescriptor.attributes[0].offset = 0
+vertexDescriptor.attributes[0].bufferIndex =  0
+
+vertexDescriptor.layouts[0].stride = MemoryLayout<SIMD3<Float>>.stride
+
+let meshDescriptor = MTKModelIOVertexDescriptorFromMetal(vertexDescriptor)
+
+(meshDescriptor.attributes[0] as! MDLVertexAttribute).name = MDLVertexAttributePosition
+
+let asset = MDLAsset(url:assetURL,
+    vertexDescriptor: meshDescriptor,
+bufferAllocator: allocator)
+
+let mdlMesh = asset.childObjects(of: MDLMesh.self).first as! MDLMesh
+
 /// For Metal to be able to use the mesh, you convert it from a Model I/O mesh to a MetalKit mesh.
 let mesh = try MTKMesh(mesh: mdlMesh , device: device)
 
-
+/*
+//BEGIN export
+//export
+let asset = MDLAsset()
+asset.add(mdlMesh)
+let fileExtension = "obj"
+guard MDLAsset.canExportFileExtension(fileExtension) else {
+    fatalError("Can't export a .\(fileExtension) format")
+}
+do {
+    let url = playgroundSharedDataDirectory.appendingPathExtension("primitive.\(fileExtension)")
+    try asset.export(to: url)
+    
+}catch {
+    fatalError("Error \(error.localizedDescription)")
+}
+//END Export
+*/
 ///Setup pipeline
 ///
 ///Each frame consists of commands that you send to the GPU. You wrap up these
@@ -88,15 +132,18 @@ renderEncoder.setRenderPipelineState(pipelineState)
 renderEncoder.setVertexBuffer(mesh.vertexBuffers[0].buffer, offset: 0, index: 0)
 
 ///
-guard let submesh = mesh.submeshes.first else {
-    fatalError()
-}
+//guard let submesh = mesh.submeshes.first else {
+//    fatalError()
+//}
 
 //draw call
-renderEncoder.drawIndexedPrimitives(type: .triangle,
-                                    indexCount: submesh.indexCount,
-                                    indexType: submesh.indexType,
-                                    indexBuffer: submesh.indexBuffer.buffer, indexBufferOffset: 0)
+for submesh in mesh.submeshes {
+    renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                        indexCount: submesh.indexCount,
+                                        indexType: submesh.indexType,
+                                        indexBuffer: submesh.indexBuffer.buffer, indexBufferOffset: 0)
+}
+//renderEncoder.setTriangleFillMode(.lines)
 ///You tell the render encoder that there are no more draw calls.
 renderEncoder.endEncoding()
 ///You get the drawable from the MTKView . The MTKView is backed by a Core Animation CAMetalLayer and the layer owns a drawable texture which Metal can read and write to.
